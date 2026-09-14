@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@500;600&display=swap">
 <style>
 :root{
-  --bg:#ECEEF3; --surface:#FFFFFF; --surface-2:#F4F5F9; --ink:#141824; --muted:#5D6478; --faint:#9AA0B2; --line:#D9DDE7;
+  --bg:#ECEEF3; --surface:#FFFFFF; --surface-2:#F4F5F9; --ink:#141824; --muted:#5D6478; --muted-strong:#40465C; --faint:#9AA0B2; --line:#D9DDE7;
   --accent:#2B45C8; --accent-soft:#E2E7FB; --on-accent:#FFFFFF;
   --ok:#1C7148; --ok-soft:#E0F1E7; --bad:#BF3727; --bad-soft:#FBE4E0;
   --seg-exp:#B9BFCF; --seg-pay:#6F82E3;
@@ -23,7 +23,7 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0D0F16; --surface:#161924; --surface-2:#1D2130; --ink:#E7E9F1; --muted:#99A0B4; --faint:#666D82; --line:#2A2F41;
+    --bg:#0D0F16; --surface:#161924; --surface-2:#1D2130; --ink:#E7E9F1; --muted:#99A0B4; --muted-strong:#C7CCDC; --faint:#666D82; --line:#2A2F41;
     --accent:#8497FF; --accent-soft:#232A4E; --on-accent:#0D0F16;
     --ok:#56C98F; --ok-soft:#15301F; --bad:#FF7C69; --bad-soft:#3B1D1A;
     --seg-exp:#3A4056; --seg-pay:#5C6FD6;
@@ -51,7 +51,7 @@ button,input{font:inherit;color:inherit}
 .tabbar{display:none}
 .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;margin-bottom:22px}
 h1{font-family:var(--display);font-weight:600;font-size:clamp(28px,4.2vw,40px);letter-spacing:-.03em;line-height:1;margin:0}
-.lede{color:var(--muted);margin:8px 0 0;max-width:62ch;text-wrap:balance}
+.lede{color:var(--muted-strong);margin:8px 0 0;max-width:62ch;text-wrap:balance}
 .layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:20px;align-items:start}
 @media (max-width:940px){.layout{grid-template-columns:minmax(0,1fr)}}
 aside{display:grid;gap:14px;min-width:0}
@@ -101,7 +101,11 @@ button.select{font-family:var(--sans);font-size:14.5px}
 .opt span{font-size:12.5px;color:var(--muted)}
 .opt:hover{background:var(--surface-2)}
 .opt.on{background:var(--accent-soft)}
-.hint{font-size:12.5px;color:var(--muted);margin:0}
+.hint{font-size:12.5px;color:var(--muted-strong);margin:0}
+.info-wrap{position:relative;display:inline-block;vertical-align:1px}
+.info-btn{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--faint);background:transparent;color:var(--faint);font:600 10px/1 var(--sans);text-transform:none;letter-spacing:normal;cursor:pointer;padding:0}
+.info-btn:hover{border-color:var(--accent);color:var(--accent)}
+.pop.info{width:min(320px,92vw);max-width:calc(100vw - 16px);padding:14px;font-size:13.5px;line-height:1.55;color:var(--muted-strong);text-transform:none;letter-spacing:normal;font-weight:400}
 .hint .warn{color:var(--bad);font-weight:500}
 .hint b{color:var(--ink);font-weight:500}
 .link{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font-weight:500;text-decoration:underline;text-underline-offset:2px}
@@ -114,6 +118,8 @@ button.select{font-family:var(--sans);font-size:14.5px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 .btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
 .btn.ghost:hover{color:var(--ink);border-color:var(--line)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.danger:hover{background:var(--bad-soft)}
 .x{width:30px;height:30px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--faint);cursor:pointer;font-size:18px;line-height:1;flex:none}
 .x:hover{color:var(--bad);border-color:var(--line)}
 .check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
@@ -201,7 +207,7 @@ body.one-debt .multi-only{display:none}
 .mini-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:14px;margin:0 2px 6px}
 .mini-head b{font-weight:600}
 .mini-head .meta{width:100%;font-size:12.5px;color:var(--muted)}
-.empty-note{color:var(--muted);font-size:14px;margin:0}
+.empty-note{color:var(--muted-strong);font-size:14px;margin:0}
 .tablewrap{overflow-x:auto;margin:12px -4px 0}
 table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:620px}
 th{font-weight:500;color:var(--muted);text-align:right;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -319,9 +325,17 @@ tr.lump td{color:var(--muted)}
       <div class="pane-debts" data-pane="debts">
         <section class="panel stack" aria-labelledby="h-debts">
           <div class="toolbar">
-            <p class="eyebrow" id="h-debts" style="margin:0">Долги</p>
+            <div style="display:flex;align-items:center;gap:6px">
+              <p class="eyebrow" id="h-debts" style="margin:0">Долги</p>
+              <span class="info-wrap">
+                <button type="button" class="info-btn" data-info-toggle aria-haspopup="dialog" aria-expanded="false" aria-label="Как считаются проценты и где хранятся данные">?</button>
+                <div class="pop info" role="dialog" aria-label="Как считаются проценты и где хранятся данные" hidden>
+                  <p style="margin:0">Проценты считаются по дням: по кредитам и картам — годовая ставка (факт/365, в високосный год /366), по микрозаймам — ставка в день с ограничением переплаты 130% от суммы займа. Платёж — каждый месяц в тот же день, что и дата остатка. Доплаты идут в сокращение срока. Льготный период кредитных карт не учитывается. Банк может округлять иначе. <span id="storageNote">Данные хранятся только на этом устройстве.</span></p>
+                </div>
+              </span>
+            </div>
             <div class="acts debt-acts">
-              <button class="btn ghost" data-act="reset" title="Очистить все введённые цифры">Очистить всё</button>
+              <button class="btn danger" data-act="reset" title="Очистить все введённые цифры">Очистить всё</button>
               <div class="pick right"><button type="button" class="btn primary" data-add-debt aria-haspopup="listbox" aria-expanded="false">+ Добавить долг</button></div>
             </div>
           </div>
@@ -334,9 +348,21 @@ tr.lump td{color:var(--muted)}
         </section>
       </div>
 
-      <section class="panel stack" aria-labelledby="h-money" data-pane="money">
-        <p class="eyebrow" id="h-money">Деньги в месяц</p>
+      <section class="panel stack" aria-labelledby="h-income" data-pane="money">
+        <p class="eyebrow" id="h-income">Доходы</p>
         <div class="field"><label for="f-inc">Доход на руки</label><div class="money"><input id="f-inc" inputmode="decimal" data-k="income"><span>₽</span></div></div>
+        <label class="check"><input type="checkbox" data-k="side.on"> Есть дополнительный доход</label>
+        <div class="field raise-only"><label for="f-rinc">Сколько в месяц</label><div class="money"><input id="f-rinc" inputmode="decimal" data-k="side.amount"><span>₽</span></div></div>
+        <div class="row2 raise-only">
+          <div class="field"><label for="f-rfrom">С месяца</label><div class="pick"><button type="button" id="f-rfrom" class="date" data-pick="month" data-k="side.from" data-empty="с начала" aria-haspopup="dialog" aria-expanded="false"></button></div></div>
+          <div class="field"><label for="f-rto">По месяц</label><div class="pick right"><button type="button" id="f-rto" class="date" data-pick="month" data-k="side.to" data-empty="без конца" aria-haspopup="dialog" aria-expanded="false"></button></div></div>
+        </div>
+        <p class="hint raise-only" id="sideHint" style="font-weight:500"></p>
+        <p class="hint raise-only">Подработка, премия, повышение зарплаты — прибавляется к основному доходу. «По месяц» можно оставить пустым, если доход постоянный.</p>
+      </section>
+
+      <section class="panel stack" aria-labelledby="h-expenses" data-pane="money">
+        <p class="eyebrow" id="h-expenses">Расходы</p>
         <div class="field">
           <span class="lbl">Обязательные траты</span>
           <div id="expList" class="stack" style="gap:6px"></div>
@@ -352,25 +378,13 @@ tr.lump td{color:var(--muted)}
           <span>дохода</span>
         </div>
       </section>
-
-      <section class="panel stack" aria-labelledby="h-raise" data-pane="money">
-        <p class="eyebrow" id="h-raise">Дополнительный доход</p>
-        <label class="check"><input type="checkbox" data-k="side.on"> Есть дополнительный доход</label>
-        <div class="field raise-only"><label for="f-rinc">Сколько в месяц</label><div class="money"><input id="f-rinc" inputmode="decimal" data-k="side.amount"><span>₽</span></div></div>
-        <div class="row2 raise-only">
-          <div class="field"><label for="f-rfrom">С месяца</label><div class="pick"><button type="button" id="f-rfrom" class="date" data-pick="month" data-k="side.from" data-empty="с начала" aria-haspopup="dialog" aria-expanded="false"></button></div></div>
-          <div class="field"><label for="f-rto">По месяц</label><div class="pick right"><button type="button" id="f-rto" class="date" data-pick="month" data-k="side.to" data-empty="без конца" aria-haspopup="dialog" aria-expanded="false"></button></div></div>
-        </div>
-        <p class="hint raise-only" id="sideHint" style="font-weight:500"></p>
-        <p class="hint raise-only">Подработка, премия, повышение зарплаты — прибавляется к основному доходу. «По месяц» можно оставить пустым, если доход постоянный.</p>
-      </section>
     </aside>
 
     <main>
       <div class="pane-scen" data-pane="scen">
         <section class="panel baseline" id="baseline"></section>
 
-        <div class="toolbar">
+        <div class="toolbar" id="scenToolbar" hidden>
           <h2>Варианты</h2>
           <div class="acts">
             <button class="btn" data-act="split" title="Заменит текущие варианты на 25, 50, 75 и 100% свободных денег">Разложить свободные деньги</button>
@@ -378,10 +392,12 @@ tr.lump td{color:var(--muted)}
           </div>
         </div>
         <p class="note" id="toolNote" hidden></p>
-        <div class="cards" id="cards"></div>
+        <div class="cards" id="cards" hidden></div>
       </div>
 
-      <section class="panel" aria-labelledby="h-chart" data-pane="chart">
+      <p class="empty-note panel" data-pane="chart" id="chartEmpty">Графики и таблица платежей появятся, когда добавите долги.</p>
+
+      <section class="panel" aria-labelledby="h-chart" data-pane="chart" id="chartPanel" hidden>
         <p class="eyebrow" id="h-chart">Графики по долгам</p>
         <div class="chips multi-only" id="debtFilter" style="margin-bottom:12px"></div>
         <div class="toolbar" style="margin-bottom:12px">
@@ -391,7 +407,7 @@ tr.lump td{color:var(--muted)}
         <div class="multi" id="multi"></div>
       </section>
 
-      <section class="panel" aria-labelledby="h-table" data-pane="chart">
+      <section class="panel" aria-labelledby="h-table" data-pane="chart" id="tablePanel" hidden>
         <p class="eyebrow" id="h-table">График платежей</p>
         <div class="chips" id="tblSc"></div>
         <div class="tablewrap"><table id="table"></table></div>
@@ -399,7 +415,6 @@ tr.lump td{color:var(--muted)}
     </main>
   </div>
   <p class="foot">«Досрочка» — информационный калькулятор для самостоятельных расчётов. Не является финансовой, кредитной, инвестиционной или юридической консультацией, не является рекламой или предложением финансовых услуг. Результаты расчётов приблизительные и не гарантируют условий банка или МФО.</p>
-  <p class="foot" style="margin-top:8px">Проценты считаются по дням: по кредитам и картам — годовая ставка (факт/365, в високосный год /366), по микрозаймам — ставка в день с ограничением переплаты 130% от суммы займа. Платёж — каждый месяц в тот же день, что и дата остатка. Доплаты идут в сокращение срока. Льготный период кредитных карт не учитывается. Банк может округлять иначе. <span id="storageNote">Данные хранятся только на этом устройстве.</span></p>
 </div>
 
 <nav class="tabbar" id="tabbar" aria-label="Разделы">
@@ -700,6 +715,19 @@ function chooseType(type){
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pick){const b=pick.btn;closePick();b.focus();}});
 
+function closeInfoPops(){document.querySelectorAll('.pop.info:not([hidden])').forEach(p=>{p.hidden=true;});document.querySelectorAll('[data-info-toggle][aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false'));}
+document.addEventListener('click',e=>{
+  const btn=e.target.closest('[data-info-toggle]');
+  if(btn){
+    const pop=btn.parentElement.querySelector('.pop.info'),willOpen=pop.hidden;
+    closeInfoPops();
+    if(willOpen){pop.hidden=false;btn.setAttribute('aria-expanded','true');}
+    return;
+  }
+  if(!e.target.closest('.pop.info'))closeInfoPops();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeInfoPops();});
+
 /* ---------- отрисовка форм ---------- */
 function renderExpenses(){
   $('#expList').innerHTML=S.expenses.map((e,i)=>
@@ -777,6 +805,7 @@ function fmtAxis(v,max){
 
 /* ---------- напоминания в Telegram ---------- */
 const REMIND_API='https://dosrochka-bot.gitman678.workers.dev';
+const BOT_URL='https://t.me/dosrochkinbot';
 let remindState={busy:false,msg:'',cls:''};
 function remindPayload(){
   const r=S.remind;
@@ -789,7 +818,7 @@ function renderRemind(){
   if(!REMIND_API){panel.hidden=true;return;}
   panel.hidden=false;
   const body=$('#remindBody'),r=S.remind;
-  if(!tg){body.innerHTML='<p class="hint">Напоминания присылает бот в Telegram. Откройте «Досрочку» из бота, чтобы их настроить.</p>';return;}
+  if(!tg){body.innerHTML=`<p class="hint">Напоминания настраиваются внутри Telegram-бота — здесь, в обычном браузере, они недоступны.</p><p><a class="link" href="${BOT_URL}" target="_blank" rel="noopener">Открыть @dosrochkinbot →</a></p>`;return;}
   const act=activeDebts(),payload=JSON.stringify(remindPayload());
   const savedOn=!!r.saved&&JSON.parse(r.saved).items.length>0,dirty=payload!==r.saved&&(r.on||savedOn);
   let h=`<label class="check"><input type="checkbox" data-rm="on"${r.on?' checked':''}> Напоминать о платежах</label>`;
@@ -868,7 +897,8 @@ function update(skipSave){
 
   const tbScen=document.querySelector('.tabbar [data-tab="scen"]');
   if(!act.length){
-    $('#baseline').innerHTML=`<p>Добавьте долги — здесь появятся расчёты.</p><p><button class="link" data-go="debts">Добавить долг</button></p>`;
+    $('#baseline').innerHTML=`<p>Добавьте долги — здесь появятся расчёты.</p>`;
+    $('#scenToolbar').hidden=true;$('#cards').hidden=true;$('#chartPanel').hidden=true;$('#tablePanel').hidden=true;$('#chartEmpty').hidden=false;
     S.scenarios.forEach(sc=>{
       const card=document.getElementById('sc-'+sc.id);if(!card)return;
       const o=n=>card.querySelector(`[data-o="${n}"]`);
@@ -886,6 +916,7 @@ function update(skipSave){
     return;
   }
 
+  $('#scenToolbar').hidden=false;$('#cards').hidden=false;$('#chartPanel').hidden=false;$('#tablePanel').hidden=false;$('#chartEmpty').hidden=true;
   const base=simulate({extra:0,extraRaise:0,lump:0,strategy:'rate',roll:false});
   const many=act.length>1;
   const stuckNames=sim=>sim.st.filter(s=>s.bal>0.004).map(s=>s.d.name).join(', ');
