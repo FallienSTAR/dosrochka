@@ -200,13 +200,20 @@ async function verifyInitData(initData, botToken) {
 
 // Закрепляем прямую ссылку на приложение — Mini App внутри Telegram Desktop открывается
 // небольшим окном, а по этой ссылке страница открывается полноразмерной в обычном браузере.
-// Пин только один раз на чат, чтобы /start не плодил его заново при каждом запуске.
-async function pinDesktopLink(env, chatId) {
-  const key = `pinned:${chatId}`;
-  if (await env.REMINDERS.get(key)) return;
+// Каждый /start проверяет РЕАЛЬНОЕ состояние чата (а не просто «отправляли ли мы это раньше»):
+// если пользователь открепил сообщение или закрепил поверх него что-то своё, шлём и закрепляем
+// заново, чтобы ссылка не терялась.
+async function ensurePinnedLink(env, chatId) {
+  let stillPinned = false;
+  try {
+    const chat = await tg(env, 'getChat', { chat_id: chatId });
+    stillPinned = !!(chat.pinned_message && typeof chat.pinned_message.text === 'string' && chat.pinned_message.text.includes(APP_URL));
+  } catch (e) {
+    console.log('getChat:', e.message);
+  }
+  if (stillPinned) return;
   const msg = await tg(env, 'sendMessage', { chat_id: chatId, text: DESKTOP_TEXT });
   await tg(env, 'pinChatMessage', { chat_id: chatId, message_id: msg.message_id, disable_notification: true });
-  await env.REMINDERS.put(key, '1');
 }
 
 // ---------- бот ----------
@@ -354,7 +361,7 @@ async function handleMessage(env, ctx, msg) {
       chat_id: chatId,
       menu_button: { type: 'web_app', text: 'Досрочка', web_app: { url: APP_URL } },
     }).catch(() => {});
-    await pinDesktopLink(env, chatId).catch((e) => console.log('pin:', e.message));
+    await ensurePinnedLink(env, chatId).catch((e) => console.log('pin:', e.message));
     return send(
       'Досрочка — планировщик погашения долгов: кредиты, кредитные карты, микрозаймы.\n\n' +
         DISCLAIMER +
