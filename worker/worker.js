@@ -12,6 +12,8 @@ const ALLOWED_ORIGINS = ['https://fallienstar.github.io'];
 const MSK_OFFSET_MS = 3 * 3600 * 1000;
 
 const LUCK_TEXT = '🍀 Мне повезет?';
+const REMIND_TEXT = '🔔 Мои напоминания';
+const OPEN_TEXT = 'Открыть Досрочку';
 const SLOT_WINS = new Set([1, 22, 43, 64]); // три одинаковых символа в 🎰
 const WIN_TEXT = 'Поздравляю, сегодня твой день!';
 const SLOT_ANIMATION_MS = 2300;
@@ -133,10 +135,20 @@ async function verifyInitData(initData, botToken) {
 
 // ---------- бот ----------
 
-const luckKeyboard = () => ({ keyboard: [[{ text: LUCK_TEXT }]], resize_keyboard: true, is_persistent: true });
+// Постоянная клавиатура под полем ввода — чтобы не набирать команды руками.
+// Кнопка «Открыть Досрочку» открывает Mini App одним тапом, без /start и без бокового меню.
+const mainKeyboard = () => ({
+  keyboard: [
+    [{ text: OPEN_TEXT, web_app: { url: APP_URL } }],
+    [{ text: LUCK_TEXT }, { text: REMIND_TEXT }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+});
 
-const isLuckRequest = (text) =>
-  text.replace(/ё/g, 'е').toLowerCase().replace(/^[\s🎰🍀]+/u, '').replace(/[\s?!🎰🍀]+$/u, '') === 'мне повезет';
+const norm = (text) => text.replace(/ё/g, 'е').toLowerCase().replace(/^[\s🎰🍀🔔]+/u, '').replace(/[\s?!🎰🍀🔔]+$/u, '');
+const isLuckRequest = (text) => norm(text) === 'мне повезет';
+const isRemindRequest = (text) => ['мои напоминания', 'напоминания'].includes(norm(text));
 
 async function nextLosePhrase(env, chatId) {
   // случайные фразы без повторов, пока не пройдём весь список
@@ -163,9 +175,9 @@ async function playSlots(env, ctx, chatId) {
       await new Promise((r) => setTimeout(r, SLOT_ANIMATION_MS)); // ждём, пока барабаны докрутятся
       if (won) {
         await tg(env, 'sendMessage', { chat_id: chatId, text: WIN_TEXT });
-        await tg(env, 'sendMessage', { chat_id: chatId, text: '🎉', reply_markup: luckKeyboard() });
+        await tg(env, 'sendMessage', { chat_id: chatId, text: '🎉', reply_markup: mainKeyboard() });
       } else {
-        await tg(env, 'sendMessage', { chat_id: chatId, text: phrase, reply_markup: luckKeyboard() });
+        await tg(env, 'sendMessage', { chat_id: chatId, text: phrase, reply_markup: mainKeyboard() });
       }
     })().catch((e) => console.log('slots:', e.message)),
   );
@@ -177,7 +189,7 @@ function describeReminders(rec) {
   const lines = rec.items.map((it) => `• ${it.name} — ${it.day} числа, ${it.approx ? '≈ ' : ''}${rub(it.amount)}`);
   return `🔔 Напоминаю ${when}, в 9:00 по Москве:\n${lines.join('\n')}` +
     (rec.extra ? `\n\n💪 И про досрочку: +${rub(rec.extra.amount)} в месяц (${rec.extra.name}).` : '') +
-    '\n\nВыключить: /stop';
+    '\n\nВыключить можно командой /stop.';
 }
 
 async function handleMessage(env, ctx, msg) {
@@ -195,20 +207,22 @@ async function handleMessage(env, ctx, msg) {
       chat_id: chatId,
       menu_button: { type: 'web_app', text: 'Досрочка', web_app: { url: APP_URL } },
     }).catch(() => {});
-    await send(
-      'Досрочка — планировщик погашения долгов: кредиты, кредитные карты, микрозаймы.\n' +
-        'Нажмите кнопку ниже или «Досрочка» в меню слева от поля ввода.\n\n' + DISCLAIMER,
-      { reply_markup: { inline_keyboard: [[{ text: 'Открыть Досрочку', web_app: { url: APP_URL } }]] } },
+    return send(
+      'Досрочка — планировщик погашения долгов: кредиты, кредитные карты, микрозаймы.\n\n' +
+        DISCLAIMER +
+        '\n\nКнопки внизу 👇 — открыть приложение, испытать удачу или посмотреть напоминания.',
+      { reply_markup: mainKeyboard() },
     );
-    return send('А ещё можно испытать удачу 👇', { reply_markup: luckKeyboard() });
   }
   if (command === '/luck' || isLuckRequest(text)) return playSlots(env, ctx, chatId);
-  if (command === '/remind') return send(describeReminders(await env.REMINDERS.get(`rem:${userId}`, 'json')));
+  if (command === '/remind' || isRemindRequest(text)) {
+    return send(describeReminders(await env.REMINDERS.get(`rem:${userId}`, 'json')), { reply_markup: mainKeyboard() });
+  }
   if (command === '/stop') {
     await env.REMINDERS.delete(`rem:${userId}`);
-    return send('Напоминания выключены. Включить снова можно в приложении.');
+    return send('Напоминания выключены. Включить снова можно в приложении.', { reply_markup: mainKeyboard() });
   }
-  return send('Нажмите /start, чтобы открыть приложение.');
+  return send('Не понял команду. Выберите действие на кнопках внизу 👇', { reply_markup: mainKeyboard() });
 }
 
 // ---------- API напоминаний для Mini App ----------
