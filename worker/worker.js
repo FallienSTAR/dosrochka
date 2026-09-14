@@ -14,6 +14,7 @@ const MSK_OFFSET_MS = 3 * 3600 * 1000;
 const LUCK_TEXT = '🍀 Мне повезет?';
 const REMIND_TEXT = '🔔 Мои напоминания';
 const OPEN_TEXT = 'Открыть Досрочку';
+const START_TEXT = '🔄 Старт';
 const SLOT_WINS = new Set([1, 22, 43, 64]); // три одинаковых символа в 🎰
 const WIN_TEXT = 'Поздравляю, сегодня твой день!';
 const SLOT_ANIMATION_MS = 2300;
@@ -154,14 +155,19 @@ const mainKeyboard = () => ({
   keyboard: [
     [{ text: OPEN_TEXT, web_app: { url: APP_URL } }],
     [{ text: LUCK_TEXT }, { text: REMIND_TEXT }],
+    [{ text: START_TEXT }],
   ],
   resize_keyboard: true,
   is_persistent: true,
 });
 
-const norm = (text) => text.replace(/ё/g, 'е').toLowerCase().replace(/^[\s🎰🍀🔔]+/u, '').replace(/[\s?!🎰🍀🔔]+$/u, '');
+const norm = (text) => text.replace(/ё/g, 'е').toLowerCase().replace(/^[\s🎰🍀🔔🔄]+/u, '').replace(/[\s?!🎰🍀🔔🔄]+$/u, '');
 const isLuckRequest = (text) => norm(text) === 'мне повезет';
 const isRemindRequest = (text) => ['мои напоминания', 'напоминания'].includes(norm(text));
+// Настоящую синюю кнопку «START» Telegram рисует сам только в чате без единого сообщения —
+// как только там что-то написано, кнопка пропадает навсегда, и вернуть её нельзя. Эта клавиша —
+// замена: повторяет то же самое приветствие, что и команда /start.
+const isStartRequest = (text) => norm(text) === 'старт';
 
 async function nextLosePhrase(env, chatId) {
   // случайные фразы без повторов, пока не пройдём весь список
@@ -215,7 +221,7 @@ async function handleMessage(env, ctx, msg) {
   if (command === '/id') return send(`Ваш Telegram ID: ${userId}`);
   if (!isAllowed(env, userId)) return send('Это личный бот.');
 
-  if (command === '/start' || command === '/app') {
+  if (command === '/start' || command === '/app' || isStartRequest(text)) {
     await tg(env, 'setChatMenuButton', {
       chat_id: chatId,
       menu_button: { type: 'web_app', text: 'Досрочка', web_app: { url: APP_URL } },
