@@ -283,7 +283,8 @@ def main() -> None:
     me = api("getMe")
     log(f"Бот: @{me['username']}")
 
-    start_http()
+    if not WEBAPP_URL:
+        start_http()
     if WEBAPP_URL:
         log(f"Публичный адрес Mini App: {WEBAPP_URL}")
         set_menu_button(WEBAPP_URL)
