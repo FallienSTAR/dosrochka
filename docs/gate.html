@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Досрочка</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#ECEEF3;--surface:#FFFFFF;--ink:#141824;--muted:#5D6478;--line:#D9DDE7;--accent:#2B45C8;--on-accent:#FFFFFF}
+@media (prefers-color-scheme: dark){:root{--bg:#0D0F16;--surface:#161924;--ink:#E7E9F1;--muted:#99A0B4;--line:#2A2F41;--accent:#8497FF;--on-accent:#0D0F16}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--ink);font:16px/1.5 "Golos Text",system-ui,sans-serif;padding:24px}
+.card{max-width:360px;text-align:center;display:grid;gap:14px;justify-items:center}
+.emoji{font-size:40px}
+h1{font-size:20px;font-weight:600;margin:0}
+p{margin:0;color:var(--muted)}
+button{margin-top:6px;border:0;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:500;padding:12px 22px;border-radius:11px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="emoji">👋</div>
+  <h1>Ещё пара секунд</h1>
+  <p>Чтобы открыть Досрочку, сначала напишите боту любое сообщение — например «Старт». Закройте это окно и отправьте его в чат.</p>
+  <button type="button" id="close">Понятно, закрыть</button>
+</div>
+<script>
+var tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+document.getElementById('close').addEventListener('click', function () {
+  if (tg) tg.close(); else window.close();
+});
+</script>
+</body>
+</html>
