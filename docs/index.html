@@ -187,6 +187,8 @@ body.one-debt .multi-only{display:none}
 .chart .grid{stroke:var(--line);stroke-width:1}
 .chart .axis{stroke:var(--faint);stroke-width:1}
 .multi{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.multi.single{grid-template-columns:minmax(0,1fr)}
+.debt-acts{align-items:center}
 .mini{border:1px solid var(--line);border-radius:12px;padding:12px 10px 4px;min-width:0}
 .mini-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:14px;margin:0 2px 6px}
 .mini-head b{font-weight:600}
@@ -293,11 +295,9 @@ tr.lump td{color:var(--muted)}
     </div>
     <div class="top-acts">
       <div class="seg theme-seg" id="themeSeg" role="group" aria-label="Тема оформления">
-        <button type="button" data-theme-pick="auto" title="Как в системе" aria-label="Тема как в системе"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg></button>
-        <button type="button" data-theme-pick="light" title="Светлая" aria-label="Светлая тема"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
-        <button type="button" data-theme-pick="dark" title="Тёмная" aria-label="Тёмная тема"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+        <button type="button" data-theme-pick="light" title="Светлая тема" aria-label="Светлая тема"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg></button>
+        <button type="button" data-theme-pick="dark" title="Тёмная тема" aria-label="Тёмная тема"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
       </div>
-      <button class="btn ghost" data-act="reset" title="Очистить все введённые цифры">Очистить всё</button>
     </div>
   </header>
 
@@ -307,7 +307,10 @@ tr.lump td{color:var(--muted)}
         <section class="panel stack" aria-labelledby="h-debts">
           <div class="toolbar">
             <p class="eyebrow" id="h-debts" style="margin:0">Долги</p>
-            <div class="pick right"><button type="button" class="btn primary" data-add-debt aria-haspopup="listbox" aria-expanded="false">+ Добавить долг</button></div>
+            <div class="acts debt-acts">
+              <button class="btn ghost" data-act="reset" title="Очистить все введённые цифры">Очистить всё</button>
+              <div class="pick right"><button type="button" class="btn primary" data-add-debt aria-haspopup="listbox" aria-expanded="false">+ Добавить долг</button></div>
+            </div>
           </div>
           <div id="debtSum"></div>
         </section>
@@ -362,29 +365,18 @@ tr.lump td{color:var(--muted)}
       </div>
 
       <section class="panel" aria-labelledby="h-chart" data-pane="chart">
-        <div class="toolbar" style="margin-bottom:14px">
-          <p class="eyebrow" id="h-chart" style="margin:0">Графики</p>
-          <div class="seg" id="viewSeg"><button type="button" data-view="cmp">Сравнить варианты</button><button type="button" data-view="debts">По долгам</button></div>
+        <p class="eyebrow" id="h-chart">Графики по долгам</p>
+        <div class="chips multi-only" id="debtFilter" style="margin-bottom:12px"></div>
+        <div class="toolbar" style="margin-bottom:12px">
+          <div class="legend" id="legend" style="margin:0"></div>
+          <label class="check" style="font-size:13px"><input type="checkbox" data-k="showBase"> Пунктир — без доплат</label>
         </div>
-        <div id="cmpBox">
-          <div class="toolbar" style="margin-bottom:8px">
-            <span class="lbl">Общий остаток всех долгов</span>
-            <label class="check" style="font-size:13px"><input type="checkbox" data-k="showBase"> Показать «без доплат»</label>
-          </div>
-          <div class="legend" id="legend"></div>
-          <svg class="chart" id="chart" role="img" aria-label="Общий остаток долгов по вариантам"></svg>
-        </div>
-        <div id="multiBox" hidden>
-          <div class="chips" id="multiSc"></div>
-          <p class="hint" style="margin:10px 0 12px">Сплошная линия — выбранный вариант, пунктир — если платить только по графику.</p>
-          <div class="multi" id="multi"></div>
-        </div>
+        <div class="multi" id="multi"></div>
       </section>
 
       <section class="panel" aria-labelledby="h-table" data-pane="chart">
         <p class="eyebrow" id="h-table">График платежей</p>
         <div class="chips" id="tblSc"></div>
-        <div class="chips multi-only" id="tblDebt" style="margin-top:8px"></div>
         <div class="tablewrap"><table id="table"></table></div>
       </section>
     </main>
@@ -445,7 +437,7 @@ function defaults(){
     expenses:[{n:'Еда',v:0},{n:'Жильё',v:0},{n:'Коммуналка',v:0}],
     threshold:15,
     side:{on:false,amount:0,from:'',to:''},
-    showBase:false,view:'cmp',selDebt:'all',
+    showBase:true,selDebt:'all',
     scenarios:[newScenario()],
     sel:null
   };
@@ -814,11 +806,9 @@ function update(skipSave){
       card.classList.remove('low');card.classList.toggle('sel',S.sel===sc.id);
       card.querySelectorAll('[data-strat]').forEach(b=>b.classList.toggle('on',b.dataset.strat===sc.strategy));
     });
-    $('#viewSeg').querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===S.view));
-    $('#cmpBox').hidden=S.view!=='cmp';$('#multiBox').hidden=S.view!=='debts';
-    $('#chart').innerHTML='';$('#legend').textContent='Графики появятся, когда добавите долги.';
-    $('#multiSc').innerHTML='';$('#multi').innerHTML='<p class="empty-note">Графики появятся, когда добавите долги.</p>';
-    $('#tblSc').innerHTML='';$('#tblDebt').innerHTML='';$('#h-table').textContent='График платежей';
+    $('#legend').innerHTML='';$('#debtFilter').innerHTML='';
+    $('#multi').innerHTML='<p class="empty-note">Графики появятся, когда добавите долги.</p>';
+    $('#tblSc').innerHTML='';$('#h-table').textContent='График платежей';
     $('#table').innerHTML='<tbody><tr><td>Появится, когда добавите долги.</td></tr></tbody>';
     if(tbScen)tbScen.classList.remove('alert');
     if(!skipSave)save();
@@ -913,35 +903,41 @@ function scChips(sel){
 function selectedScenario(){return S.scenarios.find(s=>s.id===S.sel)||S.scenarios[0];}
 
 function drawCharts(sims,base){
-  $('#viewSeg').querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===S.view));
-  $('#cmpBox').hidden=S.view!=='cmp';$('#multiBox').hidden=S.view!=='debts';
-  const totalPts=sim=>[[0,sim.orig],[0,sim.start],...sim.months.map(m=>[m.k,m.bal])];
-  if(S.view==='cmp'){
-    const series=S.scenarios.map(sc=>({name:sc.name,color:color(sc.c),sim:sims[sc.id]}));
-    if(S.showBase)series.push({name:'Без доплат',color:'var(--faint)',sim:base,dash:true});
-    lineChart($('#chart'),series.map(s=>({pts:totalPts(s.sim),color:s.color,dash:s.dash,done:!s.sim.stuck})),Math.max(...series.map(s=>s.sim.months.length)),base.orig,base.g0,false);
-    $('#legend').innerHTML=series.map(s=>`<span><span class="sw" style="background:${s.color}"></span><b>${esc(s.name)}</b> — ${s.sim.stuck?'не закроются':s.sim.end?my(s.sim.end):'закрыты'}</span>`).join('');
-    return;
-  }
-  const sc=selectedScenario();
-  $('#multiSc').innerHTML=scChips(sc&&sc.id);
-  if(!sc){$('#multi').innerHTML='<p class="empty-note">Добавьте вариант, чтобы увидеть графики.</p>';return;}
-  const sim=sims[sc.id];
-  $('#multi').innerHTML=sim.st.map((s,j)=>`<div class="mini"><div class="mini-head"><span class="chip round" style="--c:${color(s.d.c)}"></span><b>${esc(s.d.name)}</b><span class="meta">${s.end?'закроется '+MF[s.end.getMonth()]+' '+s.end.getFullYear():s.closed?'закрыт разовым взносом':'не закроется'} · проценты ${rub(s.ti)}</span></div><svg class="chart" data-mini="${j}" role="img" aria-label="Остаток: ${esc(s.d.name)}"></svg></div>`).join('');
-  sim.st.forEach((s,j)=>{
-    const b=base.st[j],lastK=r=>r.length?r[r.length-1].k:0;
-    const pts=[[0,s.orig],[0,s.start],...s.rows.map(r=>[r.k,r.bal])],bpts=[[0,b.orig],...b.rows.map(r=>[r.k,r.bal])];
-    lineChart(document.querySelector(`[data-mini="${j}"]`),[{pts:bpts,color:'var(--faint)',dash:true},{pts,color:color(s.d.c),done:s.closed}],Math.max(lastK(s.rows),lastK(b.rows)),Math.max(s.orig,...b.rows.map(r=>r.bal)),sim.g0,true);
+  if(S.selDebt!=='all'&&!base.st.some(s=>s.d.id===S.selDebt))S.selDebt='all';
+  $('#debtFilter').innerHTML=`<button type="button" class="chipbtn${S.selDebt==='all'?' on':''}" data-seldebt="all">Все долги</button>`+base.st.map(s=>`<button type="button" class="chipbtn${S.selDebt===s.d.id?' on':''}" data-seldebt="${s.d.id}"><span class="chip round" style="--c:${color(s.d.c)}"></span>${esc(s.d.name)}</button>`).join('');
+  $('#legend').innerHTML=S.scenarios.map(sc=>`<span><span class="sw" style="background:${color(sc.c)}"></span><b>${esc(sc.name)}</b></span>`).join('')+
+    (S.showBase?`<span><span class="sw" style="background:var(--faint)"></span>Без доплат</span>`:'');
+  const idx=base.st.map((s,j)=>j).filter(j=>S.selDebt==='all'||base.st[j].d.id===S.selDebt);
+  const single=idx.length===1,multi=$('#multi');
+  multi.classList.toggle('single',single);
+  const ends=s=>s.end?my(s.end):s.closed?'сразу':'не закроется';
+  multi.innerHTML=idx.map(j=>{
+    const b=base.st[j];
+    const meta=S.scenarios.map(sc=>`${esc(sc.name)}: ${ends(sims[sc.id].st[j])}`).concat(S.showBase?[`без доплат: ${ends(b)}`]:[]).join(' · ');
+    return `<div class="mini"><div class="mini-head"><span class="chip round" style="--c:${color(b.d.c)}"></span><b>${esc(b.d.name)}</b><span class="lbl">${esc(typeOf(b.d).label)}</span><span class="meta">${meta}</span></div><svg class="chart" data-mini="${j}" role="img" aria-label="Остаток долга: ${esc(b.d.name)}"></svg></div>`;
+  }).join('');
+  const lastK=r=>r.length?r[r.length-1].k:0;
+  idx.forEach(j=>{
+    const b=base.st[j],series=[];let maxK=1,yMax=b.orig;
+    if(S.showBase){
+      series.push({pts:[[0,b.orig],...b.rows.map(r=>[r.k,r.bal])],color:'var(--faint)',dash:true,done:b.closed});
+      maxK=Math.max(maxK,lastK(b.rows));yMax=Math.max(yMax,...b.rows.map(r=>r.bal));
+    }
+    S.scenarios.forEach(sc=>{
+      const s=sims[sc.id].st[j];
+      series.push({pts:[[0,s.orig],[0,s.start],...s.rows.map(r=>[r.k,r.bal])],color:color(sc.c),done:s.closed});
+      maxK=Math.max(maxK,lastK(s.rows));yMax=Math.max(yMax,...s.rows.map(r=>r.bal));
+    });
+    lineChart(document.querySelector(`[data-mini="${j}"]`),series,maxK,yMax,base.g0,!single);
   });
 }
 
 function drawTable(sims){
   const sc=selectedScenario(),t=$('#table');
   $('#tblSc').innerHTML=scChips(sc&&sc.id);
-  if(!sc){t.innerHTML='<tbody><tr><td>Добавьте вариант, чтобы увидеть график.</td></tr></tbody>';$('#h-table').textContent='График платежей';$('#tblDebt').innerHTML='';return;}
+  if(!sc){t.innerHTML='<tbody><tr><td>Добавьте вариант, чтобы увидеть график.</td></tr></tbody>';$('#h-table').textContent='График платежей';return;}
   const sim=sims[sc.id],th=num(S.threshold),many=sim.st.length>1;
   if(S.selDebt!=='all'&&!sim.st.some(s=>s.d.id===S.selDebt))S.selDebt='all';
-  $('#tblDebt').innerHTML=`<button type="button" class="chipbtn${S.selDebt==='all'?' on':''}" data-seldebt="all">Все долги</button>`+sim.st.map(s=>`<button type="button" class="chipbtn${S.selDebt===s.d.id?' on':''}" data-seldebt="${s.d.id}"><span class="chip round" style="--c:${color(s.d.c)}"></span>${esc(s.d.name)}</button>`).join('');
   const one=!many?sim.st[0]:S.selDebt!=='all'?sim.st.find(s=>s.d.id===S.selDebt):null;
   $('#h-table').textContent='График платежей — '+sc.name+(one&&many?' · '+one.d.name:'');
   let h;
@@ -1044,8 +1040,6 @@ document.addEventListener('click',e=>{
   }
   const strat=e.target.closest('[data-strat]');
   if(strat){const sc=S.scenarios.find(s=>s.id===strat.dataset.id);if(sc){sc.strategy=strat.dataset.strat;update();}return;}
-  const view=e.target.closest('[data-view]');
-  if(view){S.view=view.dataset.view;update();return;}
   const ss=e.target.closest('[data-selsc]');
   if(ss){S.sel=ss.dataset.selsc;update();return;}
   const sd=e.target.closest('[data-seldebt]');
@@ -1094,14 +1088,15 @@ document.addEventListener('click',e=>{
 
 function renderAll(){renderDebts();renderExpenses();renderCards();fillStatic();update();}
 
-let themePref='auto';
-try{themePref=localStorage.getItem('dosrochka.theme')||'auto';}catch(e){}
+let themePref=null;
+try{themePref=localStorage.getItem('dosrochka.theme');}catch(e){}
+if(themePref!=='light'&&themePref!=='dark')themePref=null;
+const sysDark=window.matchMedia('(prefers-color-scheme: dark)');
 function applyTheme(){
   const root=document.documentElement;
-  if(themePref==='light'||themePref==='dark')root.setAttribute('data-theme',themePref);
-  else if(tg)root.setAttribute('data-theme',tg.colorScheme==='dark'?'dark':'light');
-  else root.removeAttribute('data-theme');
-  document.querySelectorAll('[data-theme-pick]').forEach(b=>{const on=b.dataset.themePick===themePref;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
+  const eff=themePref||(tg?(tg.colorScheme==='dark'?'dark':'light'):(sysDark.matches?'dark':'light'));
+  if(themePref||tg)root.setAttribute('data-theme',eff);else root.removeAttribute('data-theme');
+  document.querySelectorAll('[data-theme-pick]').forEach(b=>{const on=b.dataset.themePick===eff;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);});
   if(tg){try{const bg=getComputedStyle(root).getPropertyValue('--bg').trim();if(tg.isVersionAtLeast('6.1')){tg.setHeaderColor(bg);tg.setBackgroundColor(bg);}}catch(e){}}
 }
 document.addEventListener('click',e=>{
@@ -1110,6 +1105,7 @@ document.addEventListener('click',e=>{
   try{localStorage.setItem('dosrochka.theme',themePref);}catch(e){}
   applyTheme();
 });
+if(sysDark.addEventListener)sysDark.addEventListener('change',applyTheme);
 applyTheme();
 
 if(tg){
