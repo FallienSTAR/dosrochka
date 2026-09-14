@@ -13,6 +13,7 @@
 
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
@@ -52,6 +53,15 @@ ALLOWED_IDS = {
     int(x) for x in re.split(r"[,\s]+", os.environ.get("ALLOWED_USER_IDS", "")) if x.strip().isdigit()
 }
 BUTTON_TEXT = "Открыть Досрочку"
+LUCK_TEXT = "🎰 Мне повезет?"
+# Значение 🎰 от 1 до 64; три одинаковых символа выпадают на 1, 22, 43 и 64
+SLOT_WINS = {1: "Три BAR", 22: "Три винограда", 43: "Три лимона", 64: "777"}
+SLOT_LOSE = [
+    "Не в этот раз. Не переживай — досрочка работает и без везения 😉",
+    "Мимо, но не переживай: каждая доплата по кредиту — уже маленький выигрыш 💪",
+    "Не переживай! Удача любит тех, кто гасит кредит по плану 📉",
+]
+SLOT_ANIMATION_SEC = 2.3
 STATE = {"url": WEBAPP_URL, "proc": None}
 
 
@@ -93,8 +103,33 @@ def set_menu_button(url: str) -> None:
         api("setChatMenuButton", menu_button=menu)
     api("setMyCommands", commands=[
         {"command": "start", "description": "Открыть Досрочку"},
+        {"command": "luck", "description": "Мне повезет?"},
         {"command": "id", "description": "Показать мой Telegram ID"},
     ])
+
+
+def luck_keyboard() -> dict:
+    return {"keyboard": [[{"text": LUCK_TEXT}]], "resize_keyboard": True, "is_persistent": True}
+
+
+def is_luck_request(text: str) -> bool:
+    return text.replace("ё", "е").lower().strip(" ?!🎰") == "мне повезет"
+
+
+def play_slots(chat_id: int) -> None:
+    value = api("sendDice", chat_id=chat_id, emoji="🎰")["dice"]["value"]
+    if value in SLOT_WINS:
+        text = f"🎉 {SLOT_WINS[value]}! Поздравляю, сегодня твой день!"
+    else:
+        text = random.choice(SLOT_LOSE)
+
+    def reply():  # ждём, пока барабаны докрутятся, чтобы не спойлерить результат
+        try:
+            api("sendMessage", chat_id=chat_id, text=text, reply_markup=luck_keyboard())
+        except Exception as err:
+            log(f"Не удалось отправить результат слотов: {err}")
+
+    threading.Timer(SLOT_ANIMATION_SEC, reply).start()
 
 
 def handle_message(msg: dict) -> None:
@@ -123,6 +158,9 @@ def handle_message(msg: dict) -> None:
                  "Нажмите кнопку ниже или «Досрочка» в меню слева от поля ввода.",
             reply_markup=web_app_button(url),
         )
+        api("sendMessage", chat_id=chat_id, text="А ещё можно испытать удачу 👇", reply_markup=luck_keyboard())
+    elif command == "/luck" or is_luck_request(text):
+        play_slots(chat_id)
     else:
         api("sendMessage", chat_id=chat_id, text="Нажмите /start, чтобы открыть приложение.")
 
