@@ -188,6 +188,14 @@ body.one-debt .multi-only{display:none}
 .chart .axis{stroke:var(--faint);stroke-width:1}
 .multi{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .multi.single{grid-template-columns:minmax(0,1fr)}
+.notice{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;background:var(--accent-soft);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:0 0 18px;font-size:14px}
+.notice p{margin:0;max-width:90ch}
+.rm-debts{display:grid;gap:4px}
+.rm-debts .check{font-size:14px}
+.rm-status{font-size:13px;margin:0}
+.rm-status.ok{color:var(--ok)}
+.rm-status.bad{color:var(--bad)}
+@media (max-width:760px){.notice{flex-direction:column;align-items:stretch;font-size:15px;padding:14px}.rm-debts .check{font-size:16px}}
 .debt-acts{align-items:center}
 .mini{border:1px solid var(--line);border-radius:12px;padding:12px 10px 4px;min-width:0}
 .mini-head{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;font-size:14px;margin:0 2px 6px}
@@ -301,6 +309,11 @@ tr.lump td{color:var(--muted)}
     </div>
   </header>
 
+  <div class="notice" id="notice" hidden>
+    <p><b>Это калькулятор, а не финансовая консультация.</b> Расчёты приблизительные — банк может считать иначе, поэтому сверяйтесь с графиком платежей и договором. Решения о кредитах и займах вы принимаете сами.</p>
+    <button class="btn" data-act="noticeOk">Понятно</button>
+  </div>
+
   <div class="layout">
     <aside>
       <div class="pane-debts" data-pane="debts">
@@ -315,6 +328,10 @@ tr.lump td{color:var(--muted)}
           <div id="debtSum"></div>
         </section>
         <div id="debtList" class="stack" style="gap:14px"></div>
+        <section class="panel stack" id="remindPanel" aria-labelledby="h-remind" hidden>
+          <p class="eyebrow" id="h-remind" style="margin:0">Напоминания в Telegram</p>
+          <div id="remindBody" class="stack"></div>
+        </section>
       </div>
 
       <section class="panel stack" aria-labelledby="h-money" data-pane="money">
@@ -381,7 +398,8 @@ tr.lump td{color:var(--muted)}
       </section>
     </main>
   </div>
-  <p class="foot">Проценты считаются по дням: по кредитам и картам — годовая ставка (факт/365, в високосный год /366), по микрозаймам — ставка в день с ограничением переплаты 130% от суммы займа. Платёж — каждый месяц в тот же день, что и дата остатка. Доплаты идут в сокращение срока. Льготный период кредитных карт не учитывается. Банк может округлять иначе. <span id="storageNote">Данные хранятся только на этом устройстве.</span></p>
+  <p class="foot">«Досрочка» — информационный калькулятор для самостоятельных расчётов. Не является финансовой, кредитной, инвестиционной или юридической консультацией, не является рекламой или предложением финансовых услуг. Результаты расчётов приблизительные и не гарантируют условий банка или МФО.</p>
+  <p class="foot" style="margin-top:8px">Проценты считаются по дням: по кредитам и картам — годовая ставка (факт/365, в високосный год /366), по микрозаймам — ставка в день с ограничением переплаты 130% от суммы займа. Платёж — каждый месяц в тот же день, что и дата остатка. Доплаты идут в сокращение срока. Льготный период кредитных карт не учитывается. Банк может округлять иначе. <span id="storageNote">Данные хранятся только на этом устройстве.</span></p>
 </div>
 
 <nav class="tabbar" id="tabbar" aria-label="Разделы">
@@ -438,6 +456,7 @@ function defaults(){
     threshold:15,
     side:{on:false,amount:0,from:'',to:''},
     showBase:true,selDebt:'all',
+    remind:{on:false,before:1,debts:{},sc:null,saved:''},
     scenarios:[newScenario()],
     sel:null
   };
@@ -462,6 +481,7 @@ function normalize(s){
   s.scenarios=s.scenarios.map(sc=>newScenario(sc));
   if(!s.view)s.view='cmp';
   if(!s.selDebt)s.selDebt='all';
+  s.remind=Object.assign({on:false,before:1,debts:{},sc:null,saved:''},s.remind||{});
   return s;
 }
 let S;
@@ -755,6 +775,55 @@ function fmtAxis(v,max){
   return nf0.format(Math.round(v));
 }
 
+/* ---------- напоминания в Telegram ---------- */
+const REMIND_API='';
+let remindState={busy:false,msg:'',cls:''};
+function remindPayload(){
+  const r=S.remind;
+  const items=r.on?activeDebts().filter(d=>r.debts[d.id]!==false).map(d=>({name:d.name,day:parseDate(d.date).getDate(),amount:Math.round(firstMonth(d).req),approx:kindOf(d)==='card'})):[];
+  const sc=S.scenarios.find(s=>s.id===r.sc);
+  return {before:r.before,items,extra:items.length&&sc&&num(sc.extra)>0?{name:sc.name,amount:Math.round(num(sc.extra))}:null};
+}
+function renderRemind(){
+  const panel=$('#remindPanel');
+  if(!REMIND_API){panel.hidden=true;return;}
+  panel.hidden=false;
+  const body=$('#remindBody'),r=S.remind;
+  if(!tg){body.innerHTML='<p class="hint">Напоминания присылает бот в Telegram. Откройте «Досрочку» из бота, чтобы их настроить.</p>';return;}
+  const act=activeDebts(),payload=JSON.stringify(remindPayload());
+  const savedOn=!!r.saved&&JSON.parse(r.saved).items.length>0,dirty=payload!==r.saved&&(r.on||savedOn);
+  let h=`<label class="check"><input type="checkbox" data-rm="on"${r.on?' checked':''}> Напоминать о платежах</label>`;
+  if(r.on&&!act.length)h+='<p class="hint">Добавьте долги, чтобы было о чём напоминать.</p>';
+  if(r.on&&act.length){
+    h+=`<div class="field"><span class="lbl">Когда</span><div class="seg full">${[[0,'В день платежа'],[1,'За день'],[3,'За 3 дня']].map(([v,l])=>`<button type="button" data-rmbefore="${v}" class="${r.before===v?'on':''}">${l}</button>`).join('')}</div></div>`;
+    h+=`<div class="field"><span class="lbl">О каких долгах</span><div class="rm-debts">${act.map(d=>`<label class="check"><input type="checkbox" data-rmdebt="${d.id}"${r.debts[d.id]!==false?' checked':''}><span class="chip round" style="--c:${color(d.c)}"></span>${esc(d.name)} — ${parseDate(d.date).getDate()} числа, ${kindOf(d)==='card'?'≈ ':''}${rub(firstMonth(d).req)}</label>`).join('')}</div></div>`;
+    const withExtra=S.scenarios.filter(s=>num(s.extra)>0),scOn=withExtra.some(s=>s.id===r.sc);
+    if(withExtra.length)h+=`<div class="field"><span class="lbl">Напоминать о досрочке</span><div class="chips"><button type="button" class="chipbtn${scOn?'':' on'}" data-rmsc="">Не надо</button>${withExtra.map(s=>`<button type="button" class="chipbtn${r.sc===s.id?' on':''}" data-rmsc="${s.id}"><span class="chip" style="--c:${color(s.c)}"></span>${esc(s.name)}</button>`).join('')}</div></div>`;
+  }
+  h+='<p class="hint">Бот пишет в 9:00 по Москве. Для этого на сервер бота уходят только названия долгов, дни и суммы платежей — остальное остаётся в облаке Telegram.</p>';
+  if(dirty||remindState.busy)h+=`<div><button class="btn primary" data-act="saveRemind"${remindState.busy?' disabled':''}>${r.on&&JSON.parse(payload).items.length?'Сохранить напоминания':'Выключить напоминания'}</button></div>`;
+  const msg=remindState.msg||(dirty&&r.saved?'Есть несохранённые изменения.':savedOn&&!dirty?'Напоминания включены. Посмотреть в боте: /remind':'');
+  if(msg)h+=`<p class="rm-status ${remindState.cls}" role="status">${esc(msg)}</p>`;
+  body.innerHTML=h;
+}
+async function saveRemind(){
+  if(remindState.busy||!tg||!REMIND_API)return;
+  const payload=remindPayload();
+  remindState={busy:true,msg:'Сохраняю…',cls:''};renderRemind();
+  try{
+    const res=await fetch(REMIND_API+'/api/reminders',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(Object.assign({initData:tg.initData},payload))});
+    const data=await res.json().catch(()=>({}));
+    if(data.ok){
+      S.remind.saved=JSON.stringify(payload);save();
+      remindState={busy:false,cls:'ok',msg:data.off?'Напоминания выключены.':'Готово! Бот прислал сообщение с настройками.'};
+    }else{
+      const m={blocked:'Бот не может вам написать: откройте чат с ботом и нажмите /start.',auth:'Не удалось подтвердить аккаунт. Закройте приложение и откройте заново из бота.',forbidden:'Это личный бот — напоминания недоступны.'};
+      remindState={busy:false,cls:'bad',msg:m[data.error]||'Не получилось сохранить. Попробуйте ещё раз.'};
+    }
+  }catch(e){remindState={busy:false,cls:'bad',msg:'Нет связи с сервером напоминаний. Попробуйте позже.'};}
+  renderRemind();
+}
+
 /* ---------- главный пересчёт ---------- */
 function update(skipSave){
   const act=activeDebts();
@@ -776,6 +845,8 @@ function update(skipSave){
   }else{
     $('#debtSum').innerHTML=`<p class="hint">${S.debts.length?'Заполните остаток хотя бы по одному долгу.':'Добавьте кредиты, кредитные карты, микрозаймы — всё, что нужно погасить.'}</p>`;
   }
+
+  renderRemind();
 
   const tot=Math.max(inc,ex+req,1),seg=(v,c)=>`<i style="width:${Math.max(0,v)/tot*100}%;background:${c}"></i>`;
   $('#split').innerHTML=seg(ex,'var(--seg-exp)')+seg(req,'var(--seg-pay)')+seg(free,'var(--ok)');
@@ -1001,6 +1072,10 @@ document.addEventListener('input',e=>{
   }else if(t.dataset.ex!==undefined){
     const ex=S.expenses[+t.dataset.ex];if(!ex)return;
     if(t.dataset.f==='n')ex.n=t.value;else ex.v=num(t.value);
+  }else if(t.dataset.rm){
+    S.remind.on=t.checked;remindState.msg='';
+  }else if(t.dataset.rmdebt){
+    S.remind.debts[t.dataset.rmdebt]=t.checked;remindState.msg='';
   }else return;
   update();
 });
@@ -1044,6 +1119,10 @@ document.addEventListener('click',e=>{
   if(ss){S.sel=ss.dataset.selsc;update();return;}
   const sd=e.target.closest('[data-seldebt]');
   if(sd){S.selDebt=sd.dataset.seldebt;update();return;}
+  const rb=e.target.closest('[data-rmbefore]');
+  if(rb){S.remind.before=+rb.dataset.rmbefore;remindState.msg='';update();return;}
+  const rs=e.target.closest('[data-rmsc]');
+  if(rs){S.remind.sc=rs.dataset.rmsc||null;remindState.msg='';update();return;}
 
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act,note=$('#toolNote');note.hidden=true;
@@ -1080,6 +1159,10 @@ document.addEventListener('click',e=>{
     const d=findDebt(b.dataset.id);if(!d)return;
     d.payment=r2(annuity(num(d.balance),num(d.rate),Math.round(num(d.years)*12)));
     const inp=document.getElementById(d.id+'-payment');if(inp)inp.value=fmtIn(d.payment);
+  }else if(a==='saveRemind'){
+    saveRemind();return;
+  }else if(a==='noticeOk'){
+    $('#notice').hidden=true;try{localStorage.setItem('dosrochka.notice','1');}catch(err){}return;
   }else if(a==='reset'){
     confirmThen('Очистить все введённые цифры?',()=>{S=defaults();renderAll();});return;
   }
@@ -1114,6 +1197,7 @@ if(tg){
   try{if(tg.isVersionAtLeast('7.7'))tg.disableVerticalSwipes();}catch(e){}
 }
 
+try{if(!localStorage.getItem('dosrochka.notice'))$('#notice').hidden=false;}catch(e){$('#notice').hidden=false;}
 setTab(['debts','money','scen','chart'].includes(tab)?tab:(activeDebts().length?'scen':'debts'),true);
 renderAll();
 
