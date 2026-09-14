@@ -1,5 +1,8 @@
 // Досрочка — Telegram-бот на Cloudflare Workers.
 // Отвечает на сообщения через webhook, хранит напоминания в KV и раз в день рассылает их по cron.
+// Мини-игры с прогнозом (кегли/баскетбол/футбол) используют инлайн-кнопки — для них webhook
+// должен быть подписан не только на "message", но и на "callback_query" (setWebhook →
+// allowed_updates), иначе Telegram не станет присылать нажатия этих кнопок.
 //
 // Нужные настройки Worker:
 //   Secrets:   BOT_TOKEN, WEBHOOK_SECRET
@@ -11,10 +14,14 @@ const APP_URL = 'https://fallienstar.github.io/dosrochka/';
 const ALLOWED_ORIGINS = ['https://fallienstar.github.io'];
 const MSK_OFFSET_MS = 3 * 3600 * 1000;
 
-const LUCK_TEXT = '🍀 Мне повезет?';
+const LUCK_TEXT = '🍀 Мне повезет?'; // старая кнопка, оставлена только для совместимости со старой клавиатурой
 const REMIND_TEXT = '🔔 Мои напоминания';
 const OPEN_TEXT = 'Открыть Досрочку';
 const START_TEXT = '🔄 Старт';
+const GAMES_TEXT = '🎮 Мини-игры';
+const SLOTS_TEXT = '🎰 Слоты';
+const LINK_TEXT = '🔗 Ссылка на приложение';
+const BACK_TEXT = '⬅️ Назад';
 const SLOT_WINS = new Set([1, 22, 43, 64]); // три одинаковых символа в 🎰
 const WIN_TEXT = 'Поздравляю, сегодня твой день!';
 const SLOT_ANIMATION_MS = 2300;
@@ -62,6 +69,61 @@ const SLOT_LOSE = [
 ];
 
 const DESKTOP_TEXT = `🖥 Ссылка на приложение — работает и в обычном браузере на компьютере, не только в Telegram:\n${APP_URL}`;
+const APP_LINK_TEXT = `🔗 Прямая ссылка на приложение — открывается и в Telegram, и в обычном браузере:\n${APP_URL}`;
+
+// Игры с прогнозом: сначала спрашиваем «попадёт или нет», потом крутим настоящий Telegram-дайс
+// и сравниваем результат с прогнозом. Монетка — без дайса, просто честный рандом 50/50.
+const GAMES = {
+  coin: {
+    key: 'coin',
+    label: '🪙 Монетка',
+    ask: 'Загадай: орёл или решка?',
+    options: [
+      ['heads', '🦅 Орёл'],
+      ['tails', '🪙 Решка'],
+    ],
+  },
+  bowling: {
+    key: 'bowling',
+    label: '🎳 Кегли',
+    ask: 'Собьёшь все кегли одним броском?',
+    options: [
+      ['yes', '✅ Собью все'],
+      ['no', '❌ Не все'],
+    ],
+    dice: '🎳',
+    isSuccess: (v) => v === 6,
+    successText: 'Страйк! Все кегли сбиты 🎳💥',
+    failText: 'Часть кеглей осталась стоять.',
+  },
+  basket: {
+    key: 'basket',
+    label: '🏀 Баскетбол',
+    ask: 'Как думаешь, попадёшь в кольцо?',
+    options: [
+      ['yes', '✅ Попаду'],
+      ['no', '❌ Мимо'],
+    ],
+    dice: '🏀',
+    isSuccess: (v) => v >= 4,
+    successText: 'Мяч точно влетел в кольцо! 🏀',
+    failText: 'Мяч пролетел мимо кольца.',
+  },
+  football: {
+    key: 'football',
+    label: '⚽ Футбол',
+    ask: 'Забьёшь гол?',
+    options: [
+      ['yes', '✅ Забью'],
+      ['no', '❌ Мимо'],
+    ],
+    dice: '⚽',
+    isSuccess: (v) => v >= 4,
+    successText: 'Гол! ⚽️🥅',
+    failText: 'Мимо ворот.',
+  },
+};
+const GAME_ANIMATION_MS = 2500;
 
 const DISCLAIMER =
   'Досрочка — калькулятор для самостоятельных расчётов, а не финансовая или юридическая консультация. ' +
@@ -154,20 +216,44 @@ async function pinDesktopLink(env, chatId) {
 const mainKeyboard = () => ({
   keyboard: [
     [{ text: OPEN_TEXT, web_app: { url: APP_URL } }],
-    [{ text: LUCK_TEXT }, { text: REMIND_TEXT }],
-    [{ text: START_TEXT }],
+    [{ text: GAMES_TEXT }, { text: REMIND_TEXT }],
+    [{ text: LINK_TEXT }, { text: START_TEXT }],
   ],
   resize_keyboard: true,
   is_persistent: true,
 });
 
+const gamesKeyboard = () => ({
+  keyboard: [
+    [{ text: SLOTS_TEXT }, { text: GAMES.coin.label }],
+    [{ text: GAMES.bowling.label }, { text: GAMES.basket.label }],
+    [{ text: GAMES.football.label }],
+    [{ text: BACK_TEXT }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+});
+
+// Клавиатура-вопрос под конкретную игру: два варианта прогноза, callback_data вида «g:игра:вариант»
+const gameAskKeyboard = (game) => ({
+  inline_keyboard: [game.options.map(([value, text]) => ({ text, callback_data: `g:${game.key}:${value}` }))],
+});
+
 const norm = (text) => text.replace(/ё/g, 'е').toLowerCase().replace(/^[\s🎰🍀🔔🔄]+/u, '').replace(/[\s?!🎰🍀🔔🔄]+$/u, '');
-const isLuckRequest = (text) => norm(text) === 'мне повезет';
+const isLuckRequest = (text) => norm(text) === 'мне повезет'; // старая кнопка/фраза — по-прежнему запускает слоты
 const isRemindRequest = (text) => ['мои напоминания', 'напоминания'].includes(norm(text));
 // Настоящую синюю кнопку «START» Telegram рисует сам только в чате без единого сообщения —
 // как только там что-то написано, кнопка пропадает навсегда, и вернуть её нельзя. Эта клавиша —
 // замена: повторяет то же самое приветствие, что и команда /start.
 const isStartRequest = (text) => norm(text) === 'старт';
+
+function coinResultText(outcome, correct) {
+  const fact = outcome === 'heads' ? 'Выпал орёл 🦅' : 'Выпала решка 🪙';
+  return (correct ? '🎉 Угадал! ' : 'Не угадал. ') + fact + (correct ? '' : ' Попробуй ещё раз!');
+}
+function diceResultText(game, success, correct) {
+  return (correct ? '🎯 Прогноз сбылся! ' : 'Прогноз не сбылся. ') + (success ? game.successText : game.failText);
+}
 
 async function nextLosePhrase(env, chatId) {
   // случайные фразы без повторов, пока не пройдём весь список
@@ -194,11 +280,53 @@ async function playSlots(env, ctx, chatId) {
       await new Promise((r) => setTimeout(r, SLOT_ANIMATION_MS)); // ждём, пока барабаны докрутятся
       if (won) {
         await tg(env, 'sendMessage', { chat_id: chatId, text: WIN_TEXT });
-        await tg(env, 'sendMessage', { chat_id: chatId, text: '🎉', reply_markup: mainKeyboard() });
+        await tg(env, 'sendMessage', { chat_id: chatId, text: '🎉', reply_markup: gamesKeyboard() });
       } else {
-        await tg(env, 'sendMessage', { chat_id: chatId, text: phrase, reply_markup: mainKeyboard() });
+        await tg(env, 'sendMessage', { chat_id: chatId, text: phrase, reply_markup: gamesKeyboard() });
       }
     })().catch((e) => console.log('slots:', e.message)),
+  );
+}
+
+// Нажатие инлайн-кнопки прогноза («Попаду» / «Мимо» и т. п.) приходит отдельным типом
+// обновления — callback_query, а не message. Монетка считается тут же честным рандомом,
+// у остальных игр крутим настоящий Telegram-дайс и сверяем результат с прогнозом.
+async function handleCallback(env, ctx, cq) {
+  const chatId = cq.message && cq.message.chat && cq.message.chat.id;
+  const userId = cq.from && cq.from.id;
+  tg(env, 'answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {}); // не ждём — просто убираем спиннер
+  if (!chatId || !isAllowed(env, userId)) return;
+
+  const [, key, guess] = String(cq.data || '').split(':');
+  const game = GAMES[key];
+  if (!game) return;
+  const pickLabel = (game.options.find(([v]) => v === guess) || [])[1] || guess;
+
+  await tg(env, 'editMessageText', {
+    chat_id: chatId,
+    message_id: cq.message.message_id,
+    text: `${game.ask}\nТвой прогноз: ${pickLabel}`,
+    reply_markup: { inline_keyboard: [] }, // прогноз сделан — прячем кнопки, чтобы не жали дважды
+  }).catch(() => {});
+
+  if (key === 'coin') {
+    const outcome = Math.random() < 0.5 ? 'heads' : 'tails';
+    const correct = guess === outcome;
+    ctx.waitUntil(
+      new Promise((r) => setTimeout(r, 1200))
+        .then(() => tg(env, 'sendMessage', { chat_id: chatId, text: coinResultText(outcome, correct) }))
+        .catch((e) => console.log('coin:', e.message)),
+    );
+    return;
+  }
+
+  const dice = await tg(env, 'sendDice', { chat_id: chatId, emoji: game.dice });
+  const success = game.isSuccess(dice.dice.value);
+  const correct = (guess === 'yes') === success;
+  ctx.waitUntil(
+    new Promise((r) => setTimeout(r, GAME_ANIMATION_MS)) // ждём, пока анимация дайса доиграет
+      .then(() => tg(env, 'sendMessage', { chat_id: chatId, text: diceResultText(game, success, correct) }))
+      .catch((e) => console.log('game:', e.message)),
   );
 }
 
@@ -242,6 +370,12 @@ async function handleMessage(env, ctx, msg) {
     await env.REMINDERS.delete(`rem:${userId}`);
     return send('Напоминания выключены. Включить снова можно в приложении.', { reply_markup: mainKeyboard() });
   }
+  if (text === GAMES_TEXT) return send('Выбери игру 👇', { reply_markup: gamesKeyboard() });
+  if (text === BACK_TEXT) return send('Главное меню 👇', { reply_markup: mainKeyboard() });
+  if (text === LINK_TEXT) return send(APP_LINK_TEXT, { reply_markup: mainKeyboard() });
+  if (text === SLOTS_TEXT) return playSlots(env, ctx, chatId);
+  const game = Object.values(GAMES).find((g) => g.label === text);
+  if (game) return send(game.ask, { reply_markup: gameAskKeyboard(game) });
   return send('Не понял команду. Выберите действие на кнопках внизу 👇', { reply_markup: mainKeyboard() });
 }
 
@@ -337,12 +471,11 @@ export default {
         return new Response('forbidden', { status: 403 });
       }
       const update = await request.json().catch(() => null);
-      if (update && update.message && update.message.chat) {
-        try {
-          await handleMessage(env, ctx, update.message);
-        } catch (e) {
-          console.log('update:', e.message); // всегда отвечаем 200, иначе Telegram будет слать повторно
-        }
+      try {
+        if (update && update.message && update.message.chat) await handleMessage(env, ctx, update.message);
+        else if (update && update.callback_query) await handleCallback(env, ctx, update.callback_query);
+      } catch (e) {
+        console.log('update:', e.message); // всегда отвечаем 200, иначе Telegram будет слать повторно
       }
       return new Response('ok');
     }
