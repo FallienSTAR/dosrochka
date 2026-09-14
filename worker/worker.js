@@ -60,6 +60,8 @@ const SLOT_LOSE = [
   'Удача любит настойчивых. Крути ещё — и не забудь про досрочку 15 числа 🔁',
 ];
 
+const DESKTOP_TEXT = `🖥 Ссылка на приложение — работает и в обычном браузере на компьютере, не только в Telegram:\n${APP_URL}`;
+
 const DISCLAIMER =
   'Досрочка — калькулятор для самостоятельных расчётов, а не финансовая или юридическая консультация. ' +
   'Суммы и даты приблизительные: сверяйтесь с графиком платежей и договором.';
@@ -131,6 +133,17 @@ async function verifyInitData(initData, botToken) {
   } catch {
     return null;
   }
+}
+
+// Закрепляем прямую ссылку на приложение — Mini App внутри Telegram Desktop открывается
+// небольшим окном, а по этой ссылке страница открывается полноразмерной в обычном браузере.
+// Пин только один раз на чат, чтобы /start не плодил его заново при каждом запуске.
+async function pinDesktopLink(env, chatId) {
+  const key = `pinned:${chatId}`;
+  if (await env.REMINDERS.get(key)) return;
+  const msg = await tg(env, 'sendMessage', { chat_id: chatId, text: DESKTOP_TEXT });
+  await tg(env, 'pinChatMessage', { chat_id: chatId, message_id: msg.message_id, disable_notification: true });
+  await env.REMINDERS.put(key, '1');
 }
 
 // ---------- бот ----------
@@ -207,6 +220,7 @@ async function handleMessage(env, ctx, msg) {
       chat_id: chatId,
       menu_button: { type: 'web_app', text: 'Досрочка', web_app: { url: APP_URL } },
     }).catch(() => {});
+    await pinDesktopLink(env, chatId).catch((e) => console.log('pin:', e.message));
     return send(
       'Досрочка — планировщик погашения долгов: кредиты, кредитные карты, микрозаймы.\n\n' +
         DISCLAIMER +
