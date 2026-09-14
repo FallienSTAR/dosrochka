@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Досрочка</title>
 <meta name="description" content="Планировщик погашения долгов: кредиты, кредитные карты, микрозаймы">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fallienstar.github.io/dosrochka/">
+<meta property="og:title" content="Досрочка">
+<meta property="og:description" content="Бот-калькулятор: поможет спланировать досрочное погашение кредитов, кредитных карт и микрозаймов.">
+<meta property="og:image" content="https://fallienstar.github.io/dosrochka/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Досрочка">
+<meta name="twitter:description" content="Бот-калькулятор: поможет спланировать досрочное погашение кредитов, кредитных карт и микрозаймов.">
+<meta name="twitter:image" content="https://fallienstar.github.io/dosrochka/og-image.png">
+
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -455,7 +468,7 @@ function newDebt(type,over){
   return Object.assign({id:uid(),type,name:TYPES[type].short,c:0,balance:0,date:todayISO(),rate:0,years:0,payment:0,minPct:5,minRub:500,plusInt:true,dayRate:0.8,months:0},over||{});
 }
 function newScenario(over){
-  return Object.assign({id:uid(),name:'Вариант 1',extra:0,lump:0,strategy:'rate',roll:true,c:0},over||{});
+  return Object.assign({id:uid(),name:'Вариант 1',extra:0,lump:0,priority:null,roll:true,c:0},over||{});
 }
 function defaults(){
   return {
@@ -482,7 +495,7 @@ function normalize(s){
     s.incomes=(s.side&&s.side.on&&num(s.side.amount)>0)?[{n:'Доп. доход',v:s.side.amount}]:[];
   }
   delete s.side;delete s.raise;
-  s.scenarios.forEach(sc=>{delete sc.extraRaise;});
+  s.scenarios.forEach(sc=>{delete sc.extraRaise;delete sc.strategy;});
   if(!Array.isArray(s.debts)){
     s.debts=[];
     if(s.loan&&num(s.loan.balance)>0)s.debts.push(newDebt('credit',{balance:s.loan.balance,date:s.loan.date,rate:s.loan.rate,years:s.loan.years,payment:s.loan.payment}));
@@ -569,7 +582,16 @@ function simulate(o){
   const res={st,months:[],lump:0,stuck:false,ti:0,paid:0,g0:null,orig:0,start:0,end:null};
   if(!st.length)return res;
   const g0=new Date(Math.min(...st.map(s=>s.d0.getTime())));res.g0=g0;
-  const order=()=>st.filter(s=>s.bal>0.004).sort(o.strategy==='small'?((a,b)=>a.bal-b.bal):((a,b)=>effRate(b.d)-effRate(a.d)||a.bal-b.bal));
+  // Приоритетный долг (если выбран и ещё не закрыт) гасится первым, остальные — как обычно
+  // по убыванию ставки (это минимизирует переплату). Другие долги при этом не бросаются —
+  // они получают свой обязательный платёж каждый месяц, просто без доплаты, пока не подойдёт их черёд.
+  const order=()=>st.filter(s=>s.bal>0.004).sort((a,b)=>{
+    if(o.priority){
+      if(a.d.id===o.priority)return -1;
+      if(b.d.id===o.priority)return 1;
+    }
+    return effRate(b.d)-effRate(a.d)||a.bal-b.bal;
+  });
   let L=Math.max(0,num(o.lump));
   for(const s of order()){
     if(L<=0)break;
@@ -706,6 +728,29 @@ function chooseType(type){
   }
   update();
 }
+
+function priorityLabel(sc){
+  const d=sc.priority&&findDebt(sc.priority);
+  return d&&num(d.balance)>0?d.name:'Автоматически (сначала дорогие)';
+}
+function openPriorityPick(btn,scId){
+  closePick();
+  const sc=S.scenarios.find(s=>s.id===scId);if(!sc)return;
+  const debts=activeDebts(),cur=debts.some(d=>d.id===sc.priority)?sc.priority:null;
+  const pop=document.createElement('div');
+  pop.className='pop types';pop.setAttribute('role','listbox');pop.setAttribute('aria-label','Что закрыть первым');
+  const optRow=(key,label,c)=>`<button type="button" class="opt${key===cur?' on':''}" role="option" aria-selected="${key===cur}" data-priority="${key||''}">${c!==undefined?`<b><span class="chip round" style="--c:${color(c)};margin-right:6px;vertical-align:-1px"></span>${esc(label)}</b>`:`<b>${esc(label)}</b><span>Меньше переплата по процентам</span>`}</button>`;
+  pop.innerHTML=`<div class="opts">${optRow(null,'Автоматически (сначала дорогие)')}${debts.map(d=>optRow(d.id,d.name,d.c)).join('')}</div>`;
+  btn.parentNode.appendChild(pop);btn.setAttribute('aria-expanded','true');
+  pick={btn,pop,kind:'priority',scId};
+  const f=pop.querySelector('.opt.on')||pop.querySelector('.opt');if(f)f.focus();
+}
+function choosePriority(value){
+  const sc=S.scenarios.find(s=>s.id===pick.scId);const btn=pick.btn;closePick();
+  if(!sc)return;
+  sc.priority=value||null;
+  btn.focus();update();
+}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pick){const b=pick.btn;closePick();b.focus();}});
 
 function closeInfoPops(){document.querySelectorAll('.pop.info:not([hidden])').forEach(p=>{p.hidden=true;});document.querySelectorAll('[data-info-toggle][aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false'));}
@@ -765,7 +810,7 @@ function renderCards(){
       <div class="sc-head"><span class="chip"></span><input class="txt sc-name" data-sc="${sc.id}" data-f="name" value="${esc(sc.name)}" aria-label="Название варианта"><button class="x" data-act="del" data-id="${sc.id}" aria-label="Удалить вариант">×</button></div>
       ${moneyField(sc,'extra','Доплата в месяц')}
       ${moneyField(sc,'lump','Разово сейчас')}
-      <div class="field multi-only"><span class="lbl">Что гасить первым</span><div class="seg full"><button type="button" data-strat="rate" data-id="${sc.id}" title="Сначала долг с самой высокой ставкой — меньше переплата">Дорогие</button><button type="button" data-strat="small" data-id="${sc.id}" title="Сначала самый маленький долг — быстрее уходят платежи">Маленькие</button></div></div>
+      <div class="field multi-only"><label for="${sc.id}-prio">Что закрыть первым?</label><div class="pick"><button type="button" id="${sc.id}-prio" class="date select" data-priority-pick="${sc.id}" aria-haspopup="listbox" aria-expanded="false"></button></div></div>
       <label class="check multi-only"><input type="checkbox" data-sc="${sc.id}" data-f="roll"${sc.roll?' checked':''}> Платёж закрытого долга — в следующий</label>
       <div class="res">
         <div><div class="lbl" data-o="closeLbl">Долги закроются</div><div class="close" data-o="close"></div><div class="sub" data-o="sub"></div></div>
@@ -890,7 +935,7 @@ function update(skipSave){
       o('close').className='close';o('close').textContent='—';
       o('sub').textContent='Сначала добавьте долги';o('kv').innerHTML='';o('dlist').innerHTML='';o('life').innerHTML='';
       card.classList.remove('low');card.classList.toggle('sel',S.sel===sc.id);
-      card.querySelectorAll('[data-strat]').forEach(b=>b.classList.toggle('on',b.dataset.strat===sc.strategy));
+      const pb=card.querySelector('[data-priority-pick]');if(pb)pb.textContent='Автоматически (сначала дорогие)';
     });
     $('#legend').innerHTML='';$('#debtFilter').innerHTML='';
     $('#multi').innerHTML='<p class="empty-note">Графики появятся, когда добавите долги.</p>';
@@ -902,7 +947,7 @@ function update(skipSave){
   }
 
   $('#scenToolbar').hidden=false;$('#cards').hidden=false;$('#chartPanel').hidden=false;$('#tablePanel').hidden=false;$('#chartEmpty').hidden=true;
-  const base=simulate({extra:0,lump:0,strategy:'rate',roll:false});
+  const base=simulate({extra:0,lump:0,priority:null,roll:false});
   const many=act.length>1;
   const stuckNames=sim=>sim.st.filter(s=>s.bal>0.004).map(s=>s.d.name).join(', ');
   $('#baseline').innerHTML=(base.stuck
@@ -912,13 +957,13 @@ function update(skipSave){
 
   const sims={};let anyLow=false;
   S.scenarios.forEach(sc=>{
-    const sim=simulate({extra:sc.extra,lump:sc.lump,strategy:sc.strategy,roll:sc.roll});
+    const sim=simulate({extra:sc.extra,lump:sc.lump,priority:sc.priority,roll:sc.roll});
     sims[sc.id]=sim;
     const card=document.getElementById('sc-'+sc.id);if(!card)return;
     card.querySelectorAll('input[data-range]').forEach(r=>{
       r.max=Math.max(1000,Math.ceil(Math.max(free,num(sc[r.dataset.f]))/1000)*1000);
     });
-    card.querySelectorAll('[data-strat]').forEach(b=>b.classList.toggle('on',b.dataset.strat===sc.strategy));
+    const pb=card.querySelector('[data-priority-pick]');if(pb)pb.textContent=priorityLabel(sc);
     const o=n=>card.querySelector(`[data-o="${n}"]`);
     o('closeLbl').textContent=many?'Все долги закроются':'Долг закроется';
     card.classList.toggle('sel',S.sel===sc.id);
@@ -1102,9 +1147,12 @@ document.addEventListener('click',e=>{
   if(pb){if(pick&&pick.btn===pb)closePick();else openPick(pb);return;}
   const tp=e.target.closest('[data-type-pick],[data-add-debt]');
   if(tp){if(pick&&pick.btn===tp)closePick();else openTypePick(tp,tp.dataset.typePick||null);return;}
+  const pp=e.target.closest('[data-priority-pick]');
+  if(pp){if(pick&&pick.btn===pp)closePick();else openPriorityPick(pp,pp.dataset.priorityPick);return;}
   if(pick&&e.target.closest('.pop')){
     const t=e.target.closest('button');if(!t)return;
     if(t.dataset.type){chooseType(t.dataset.type);return;}
+    if(t.dataset.priority!==undefined){choosePriority(t.dataset.priority);return;}
     if(t.dataset.pn){
       const s=+t.dataset.pn;
       if(pick.kind==='month')pick.y+=s;
@@ -1123,8 +1171,6 @@ document.addEventListener('click',e=>{
     if(tabBtn.dataset.tab!==tab&&tg&&tg.HapticFeedback&&tg.isVersionAtLeast('6.1'))tg.HapticFeedback.selectionChanged();
     setTab(tabBtn.dataset.tab);return;
   }
-  const strat=e.target.closest('[data-strat]');
-  if(strat){const sc=S.scenarios.find(s=>s.id===strat.dataset.id);if(sc){sc.strategy=strat.dataset.strat;update();}return;}
   const ss=e.target.closest('[data-selsc]');
   if(ss){S.sel=ss.dataset.selsc;update();return;}
   const sd=e.target.closest('[data-seldebt]');
@@ -1152,7 +1198,7 @@ document.addEventListener('click',e=>{
     if(!activeDebts().length){note.textContent='Сначала добавьте долги.';note.hidden=false;return;}
     if(free<=0){note.textContent='Свободных денег нет: траты и платежи уже больше дохода.';note.hidden=false;return;}
     const first=S.scenarios[0]||newScenario();
-    S.scenarios=[25,50,75,100].map((p,i)=>{const v=Math.floor(free*p/100/1000)*1000;return newScenario({name:p+'% свободных',extra:v,lump:first.lump,strategy:first.strategy,roll:first.roll,c:i});});
+    S.scenarios=[25,50,75,100].map((p,i)=>{const v=Math.floor(free*p/100/1000)*1000;return newScenario({name:p+'% свободных',extra:v,lump:first.lump,priority:first.priority,roll:first.roll,c:i});});
     S.sel=null;renderCards();
   }else if(a==='addExp'){
     S.expenses.push({n:'Новая трата',v:0});renderExpenses();
