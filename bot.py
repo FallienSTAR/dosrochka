@@ -53,9 +53,10 @@ ALLOWED_IDS = {
     int(x) for x in re.split(r"[,\s]+", os.environ.get("ALLOWED_USER_IDS", "")) if x.strip().isdigit()
 }
 BUTTON_TEXT = "Открыть Досрочку"
-LUCK_TEXT = "🎰 Мне повезет?"
+LUCK_TEXT = "🍀 Мне повезет?"
 # Значение 🎰 от 1 до 64; три одинаковых символа выпадают на 1, 22, 43 и 64
-SLOT_WINS = {1: "Три BAR", 22: "Три винограда", 43: "Три лимона", 64: "777"}
+SLOT_WINS = {1, 22, 43, 64}
+WIN_TEXT = "Поздравляю, сегодня твой день!"
 SLOT_LOSE = [
     "Не в этот раз. Не переживай — досрочка работает и без везения 😉",
     "Мимо, но не переживай: каждая доплата по кредиту — уже маленький выигрыш 💪",
@@ -113,19 +114,21 @@ def luck_keyboard() -> dict:
 
 
 def is_luck_request(text: str) -> bool:
-    return text.replace("ё", "е").lower().strip(" ?!🎰") == "мне повезет"
+    return text.replace("ё", "е").lower().strip(" ?!🎰🍀") == "мне повезет"
 
 
 def play_slots(chat_id: int) -> None:
     value = api("sendDice", chat_id=chat_id, emoji="🎰")["dice"]["value"]
-    if value in SLOT_WINS:
-        text = f"🎉 {SLOT_WINS[value]}! Поздравляю, сегодня твой день!"
-    else:
-        text = random.choice(SLOT_LOSE)
+    won = value in SLOT_WINS
 
     def reply():  # ждём, пока барабаны докрутятся, чтобы не спойлерить результат
         try:
-            api("sendMessage", chat_id=chat_id, text=text, reply_markup=luck_keyboard())
+            if won:
+                api("sendMessage", chat_id=chat_id, text=WIN_TEXT)
+                # одиночный эмодзи Telegram показывает как анимированный стикер
+                api("sendMessage", chat_id=chat_id, text="🎉", reply_markup=luck_keyboard())
+            else:
+                api("sendMessage", chat_id=chat_id, text=random.choice(SLOT_LOSE), reply_markup=luck_keyboard())
         except Exception as err:
             log(f"Не удалось отправить результат слотов: {err}")
 
